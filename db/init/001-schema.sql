@@ -1,0 +1,34 @@
+-- general users
+
+CREATE TABLE IF NOT EXISTS users(
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    username VARCHAR(100) NOT NULL UNIQUE,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    is_blocked BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+-- sellers
+
+CREATE TABLE IF NOT EXISTS sellers(
+    user_id BIGINT PRIMARY KEY,
+    FOREIGN KEY (user_id)
+        REFERENCES users(id)
+	ON DELETE CASCADE
+);
+-- moderators
+
+CREATE TABLE IF NOT EXISTS moderators(
+    user_id BIGINT PRIMARY KEY,
+    FOREIGN KEY (user_id)
+        REFERENCES users(id)
+	ON DELETE CASCADE
+);
+-- admins
+
+CREATE TABLE IF NOT EXISTS admins(
+    user_id BIGINT PRIMARY KEY,
+    FOREIGN KEY (user_id)
+        REFERENCES users(id)
+	ON DELETE CASCADE
+);
