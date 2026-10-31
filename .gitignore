@@ -137,5 +137,3 @@ chat-88a11-firebase-adminsdk-fbsvc-a677f0151b.json# .NET
 # Secrets
 .env
 .env.*
-# Database source code
-/Database/
