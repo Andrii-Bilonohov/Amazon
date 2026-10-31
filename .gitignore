@@ -131,4 +131,9 @@ Migrations/*.Designer.cs
 
 .chat*
 client_secret*.json
-chat-88a11-firebase-adminsdk-fbsvc-a677f0151b.json
+chat-88a11-firebase-adminsdk-fbsvc-a677f0151b.json# .NET
+[Bd]in/
+[Oo]bj/
+# Secrets
+.env
+.env.*
