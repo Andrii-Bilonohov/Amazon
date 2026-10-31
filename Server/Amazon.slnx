@@ -1,6 +1,2 @@
 <Solution>
-  <Folder Name="/Database/">
-    <Project Path="Database/AmazonCopyDb.App/AmazonCopyDb.App.csproj" />
-    <Project Path="Database/AmazonCopyDb.Data/AmazonCopyDb.Data.csproj" />
-  </Folder>
 </Solution>
