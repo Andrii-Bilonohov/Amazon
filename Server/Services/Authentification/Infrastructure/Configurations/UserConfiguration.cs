@@ -12,6 +12,10 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         
         builder.Property(x => x.Email)
             .IsRequired();
+        builder.HasIndex(x => x.Email)
+            .IsUnique()
+           .HasFilter("\"IsDeleted\" = false");
+           
         builder.Property(x => x.PasswordHash)
             .IsRequired();
         builder.Property(x => x.Role)
