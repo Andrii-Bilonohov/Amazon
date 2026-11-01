@@ -177,7 +177,7 @@ public class AuthentificationService : IAuthentificationService
             var newPasswordHash = PasswordHasher(request.NewPassword);
             user.ChangePassword(newPasswordHash);
             user.ClearPasswordResetCode();
-            user.UpdateRefreshToken(null!, DateTime.MinValue);
+            user.ClearRefreshToken();
 
             _unitOfWork.Users.Update(user);
             await _unitOfWork.CommitAsync(cancellationToken);

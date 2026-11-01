@@ -72,6 +72,13 @@ public class User : BaseEntity
         
         Touch();
     }
+    
+    public void ClearRefreshToken()
+    {
+        RefreshToken = null;
+        RefreshTokenExpiryTime = null;
+        Touch();
+    }
 
     public void ChangePassword(string newPassword)
     {
