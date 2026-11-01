@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/Solution Items/" />
+  <Project Path="../../BuildingBlocks/EventBus/EventBus.csproj" />
+  <Project Path="../../BuildingBlocks/SharedKernel/SharedKernel.csproj" />
+  <Project Path="Application/Application.csproj" />
+  <Project Path="Domain/Domain.csproj" />
+  <Project Path="Infrastructure/Infrastructure.csproj" />
+  <Project Path="Presentation/Presentation.csproj" />
+</Solution>
