@@ -130,10 +130,6 @@ public class AuthentificationService : IAuthentificationService
 
             var code = GenerateCode();
 
-            #if DEBUG
-            _logger.LogInformation(code);
-            #endif
-
             user.SetPasswordResetCode(
                 HashCode(code, user.Id, _resetSecret),
                 DateTime.UtcNow.AddMinutes(5));
