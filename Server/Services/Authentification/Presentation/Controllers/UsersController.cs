@@ -1,4 +1,5 @@
-﻿using Application.Abstractions;
+﻿using System.Security.Claims;
+using Application.Abstractions;
 using Application.DTOs.Requests;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -33,13 +34,14 @@ public class UsersController : ControllerBase
     }
 
     [Authorize]
-    [HttpPut("{id:guid}")]
-    public async Task<IActionResult> UpdateProfileAsync([FromRoute] Guid id, [FromBody] UpdateUserRequest request,
+    [HttpPut]
+    public async Task<IActionResult> UpdateProfileAsync([FromBody] UpdateUserRequest request,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            var response = await _userService.UpdateProfileAsync(id, request, cancellationToken);
+            var userId = Guid.Parse(User.FindFirstValue("sub")!);
+            var response = await _userService.UpdateProfileAsync(userId, request, cancellationToken);
             return response.IsSuccess ? Ok(response) : BadRequest(response);
         }
         catch (Exception e)

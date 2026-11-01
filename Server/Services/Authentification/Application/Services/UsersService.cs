@@ -57,7 +57,7 @@ public class UsersService : IUsersService
             {
                 return InfoResponse.Failure("User not found");
             }
-
+            
             if (request.IsEmpty)
             {
                 return InfoResponse.Failure("At least one field must be provided.");
