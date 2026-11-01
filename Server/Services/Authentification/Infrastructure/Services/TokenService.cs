@@ -57,10 +57,10 @@ public class TokenService : ITokenService
             ValidateAudience = true,
             ValidateIssuer = true,
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JwtSettings:SecretKey"]!)),
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:SECRET"]!)),
             ValidateLifetime = false,
-            ValidIssuer = _configuration["JwtSettings:Issuer"],
-            ValidAudience = _configuration["JwtSettings:Audience"]
+            ValidIssuer = _configuration["JWT:ISSUER"],
+            ValidAudience = _configuration["JWT:AUDIENCE"]
         };
 
         var tokenHandler = new JwtSecurityTokenHandler();
