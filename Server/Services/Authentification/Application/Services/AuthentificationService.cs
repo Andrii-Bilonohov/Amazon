@@ -5,7 +5,7 @@ using Application.DTOs.Requests;
 using Application.DTOs.Responses;
 using Application.Mappers;
 using Domain.Abstractions;
-using EventBus.UsersEvents;
+using Domain.Enums;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SharedKernel.Responses;
@@ -14,32 +14,41 @@ namespace Application.Services;
 
 public class AuthentificationService : IAuthentificationService
 {
+    private static readonly TimeSpan RefreshTokenLifetime = TimeSpan.FromDays(7);
+    private static readonly TimeSpan ConfirmCodeLifetime = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan ResetCodeLifetime = TimeSpan.FromMinutes(5);
+
     private readonly IUnitOfWork _unitOfWork;
     private readonly ITokenService _tokenService;
-    private readonly IEventPublisher _eventPublisher;
-    private readonly IConfiguration _configuration;
+    private readonly TimeProvider _clock;
     private readonly ILogger<AuthentificationService> _logger;
-    private readonly byte[] _resetSecret;
+    private readonly byte[] _passwordResetSecret;
+    private readonly byte[] _confirmEmailSecret;
 
     public AuthentificationService(
         IUnitOfWork unitOfWork,
         ITokenService tokenService,
-        IEventPublisher eventPublisher,
+        TimeProvider clock,
         IConfiguration configuration,
         ILogger<AuthentificationService> logger)
     {
         _unitOfWork = unitOfWork ?? throw new ArgumentNullException(nameof(unitOfWork));
         _tokenService = tokenService ?? throw new ArgumentNullException(nameof(tokenService));
-        _eventPublisher = eventPublisher ?? throw new ArgumentNullException(nameof(eventPublisher));
-        _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-        var secretBase64 = _configuration["PASSWORDRESETCODE:SECRET"]
+        var passwordResetSecret = configuration["PASSWORDRESETCODE:SECRET"]
                            ?? throw new InvalidOperationException("PASSWORDRESETCODE:SECRET is not configured.");
-        _resetSecret = Convert.FromBase64String(secretBase64);
+        _passwordResetSecret = Convert.FromBase64String(passwordResetSecret);
+        
+        var confirmEmailSecret = configuration["CONFIRMEMAIL:SECRET"]
+            ?? throw new InvalidOperationException("CONFIRMEMAIL:SECRET is not configured.");
+        _confirmEmailSecret = Convert.FromBase64String(confirmEmailSecret);
     }
 
-    public async Task<ItemResponse<AuthUserResponse>> RegisterUser(
+    private DateTime Now => _clock.GetUtcNow().UtcDateTime;
+
+    public async Task<InfoResponse> InitiateRegisterUserAsync(
         RegisterUserRequest userRequest, CancellationToken cancellationToken = default)
     {
         try
@@ -47,43 +56,79 @@ public class AuthentificationService : IAuthentificationService
             var email = NormalizeEmail(userRequest.Email);
             ValidatePassword(userRequest.Password);
 
-            var existingUser = await _unitOfWork.Users.GetByAsync(u => u.Email == email, cancellationToken);
-            if (existingUser != null)
-                return ItemResponse<AuthUserResponse>.Failure("Email already registered");
+            var existing = await _unitOfWork.Users.GetByAsync(u => u.Email == email, cancellationToken);
 
-            var secureRequest = userRequest with
+            if (existing is { IsEmailConfirmed: true })
+                return InfoResponse.Failure("Email already registered");
+
+            var user = existing;
+            if (user is null)
             {
-                Email = email,
-                Password = PasswordHasher(userRequest.Password)
-            };
-            var user = AuthentificationMapper.FromAuthUserRequestToUserRegisterEntity(secureRequest);
+                var secureRequest = userRequest with
+                {
+                    Email = email,
+                    Password = PasswordHasher(userRequest.Password)
+                };
+                user = AuthentificationMapper.FromAuthUserRequestToUserRegisterEntity(secureRequest);
+                _unitOfWork.Users.Add(user);
+            }
+            user.ChangePassword(PasswordHasher(userRequest.Password));
 
-            _unitOfWork.Users.Add(user);
+            var code = GenerateCode();
 
-            var accessToken = _tokenService.GenerateAccessToken(user);
-            var refreshToken = _tokenService.GenerateRefreshToken();
-            user.UpdateRefreshToken(refreshToken, DateTime.UtcNow.AddDays(7));
-
-            await _eventPublisher.PublishAsync(
-                new UserRegistered(user.Id, user.Email, user.Role.ToString(), DateTime.UtcNow),
-                cancellationToken);
+            _logger.LogInformation(code);
+            
+            user.RequestEmailConfirmation(HashCode(code, user.Id, _confirmEmailSecret), code, Now, ConfirmCodeLifetime);
 
             await _unitOfWork.CommitAsync(cancellationToken);
 
-            return ItemResponse<AuthUserResponse>.Success(new AuthUserResponse(accessToken, refreshToken));
+            return InfoResponse.Success("Verification code has been sent to your email.");
         }
         catch (ArgumentException ex)
         {
-            return ItemResponse<AuthUserResponse>.Failure(ex.Message);
+            return InfoResponse.Failure(ex.Message);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Registration failed");
+            return InfoResponse.Failure("An error occurred. Please try again later.");
+        }
+    }
+    
+    public async Task<ItemResponse<AuthUserResponse>> ConfirmEmailAsync(
+        ConfirmEmailRequest request, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var email = NormalizeEmail(request.Email);
+            var user = await _unitOfWork.Users.GetByAsync(u => u.Email == email, cancellationToken);
+
+            if (user == null || user.IsBlocked)
+                return ItemResponse<AuthUserResponse>.Failure("Invalid or expired code.");
+
+            var result = user.ConfirmEmail(HashCode(request.Code, user.Id, _confirmEmailSecret), Now);
+            
+            if (result != ConfirmEmailResult.Confirmed)
+            {
+                await _unitOfWork.CommitAsync(cancellationToken);
+                return ItemResponse<AuthUserResponse>.Failure("Invalid or expired code.");
+            }
+
+            var accessToken = _tokenService.GenerateAccessToken(user);
+            var refreshToken = _tokenService.GenerateRefreshToken();
+            user.UpdateRefreshToken(HashToken(refreshToken), Now.Add(RefreshTokenLifetime));
+
+            await _unitOfWork.CommitAsync(cancellationToken);
+            return ItemResponse<AuthUserResponse>.Success(new AuthUserResponse(accessToken, refreshToken));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Email confirmation failed");
             return ItemResponse<AuthUserResponse>.Failure("An error occurred. Please try again later.");
         }
     }
 
-    public async Task<ItemResponse<AuthUserResponse>> LoginUser(
+    public async Task<ItemResponse<AuthUserResponse>> LoginUserAsync(
         LoginUserRequest userRequest, CancellationToken cancellationToken = default)
     {
         try
@@ -99,9 +144,8 @@ public class AuthentificationService : IAuthentificationService
 
             var accessToken = _tokenService.GenerateAccessToken(user);
             var refreshToken = _tokenService.GenerateRefreshToken();
-            user.UpdateRefreshToken(refreshToken, DateTime.UtcNow.AddDays(7));
+            user.UpdateRefreshToken(HashToken(refreshToken), Now.Add(RefreshTokenLifetime));
 
-            _unitOfWork.Users.Update(user);
             await _unitOfWork.CommitAsync(cancellationToken);
 
             return ItemResponse<AuthUserResponse>.Success(new AuthUserResponse(accessToken, refreshToken));
@@ -117,7 +161,7 @@ public class AuthentificationService : IAuthentificationService
         }
     }
 
-    public async Task<InfoResponse> InitiatePasswordReset(
+    public async Task<InfoResponse> InitiatePasswordResetAsync(
         ForgotPasswordRequest request, CancellationToken cancellationToken = default)
     {
         try
@@ -129,19 +173,18 @@ public class AuthentificationService : IAuthentificationService
                 return InfoResponse.Success("If the account exists, a verification code has been sent.");
 
             var code = GenerateCode();
+            
+            _logger.LogInformation("Code: {Code}", code);
+            
+            user.RequestPasswordReset(HashCode(code, user.Id, _passwordResetSecret), code, Now.Add(ResetCodeLifetime));
 
-            user.SetPasswordResetCode(
-                HashCode(code, user.Id, _resetSecret),
-                DateTime.UtcNow.AddMinutes(5));
-
-            await _eventPublisher.PublishAsync(
-                new UserRequestedPasswordResetEvent(user.Id, user.Email, code, DateTime.UtcNow),
-                cancellationToken);
-
-            _unitOfWork.Users.Update(user);
             await _unitOfWork.CommitAsync(cancellationToken);
 
             return InfoResponse.Success("If the account exists, a verification code has been sent.");
+        }
+        catch (ArgumentException ex)
+        {
+            return InfoResponse.Failure(ex.Message);
         }
         catch (Exception ex)
         {
@@ -150,7 +193,7 @@ public class AuthentificationService : IAuthentificationService
         }
     }
 
-    public async Task<InfoResponse> CompletePasswordReset(
+    public async Task<InfoResponse> ConfirmPasswordResetAsync(
         ResetPasswordRequest request, CancellationToken cancellationToken = default)
     {
         try
@@ -160,26 +203,18 @@ public class AuthentificationService : IAuthentificationService
             var email = NormalizeEmail(request.Email);
             var user = await _unitOfWork.Users.GetByAsync(u => u.Email == email, cancellationToken);
 
-            if (user == null || user.IsBlocked || !user.CanUseResetCode(DateTime.UtcNow))
+            if (user == null || user.IsBlocked)
                 return InfoResponse.Failure("Invalid or expired code.");
 
-            var expected = Encoding.UTF8.GetBytes(user.PasswordResetCode!);
-            var actual = Encoding.UTF8.GetBytes(HashCode(request.Code, user.Id, _resetSecret));
+            var result = user.VerifyPasswordResetCode(HashCode(request.Code, user.Id, _passwordResetSecret), Now);
 
-            if (!CryptographicOperations.FixedTimeEquals(expected, actual))
+            if (result != ResetCodeResult.Valid)
             {
-                user.RegisterFailedResetAttempt();
-                _unitOfWork.Users.Update(user);
                 await _unitOfWork.CommitAsync(cancellationToken);
                 return InfoResponse.Failure("Invalid or expired code.");
             }
-
-            var newPasswordHash = PasswordHasher(request.NewPassword);
-            user.ChangePassword(newPasswordHash);
-            user.ClearPasswordResetCode();
-            user.ClearRefreshToken();
-
-            _unitOfWork.Users.Update(user);
+            
+            user.ChangePassword(PasswordHasher(request.NewPassword));
             await _unitOfWork.CommitAsync(cancellationToken);
 
             return InfoResponse.Success("Password has been changed successfully. Please log in again.");
@@ -195,8 +230,6 @@ public class AuthentificationService : IAuthentificationService
         }
     }
 
-    // ---------- helpers ----------
-
     private static string NormalizeEmail(string email)
     {
         if (string.IsNullOrWhiteSpace(email))
@@ -210,8 +243,7 @@ public class AuthentificationService : IAuthentificationService
             throw new ArgumentException("Password must be at least 8 characters.");
     }
 
-    private static string PasswordHasher(string password)
-        => BCrypt.Net.BCrypt.HashPassword(password);
+    private static string PasswordHasher(string password) => BCrypt.Net.BCrypt.HashPassword(password);
 
     private static bool VerifyPassword(string password, string hashedPassword)
         => BCrypt.Net.BCrypt.Verify(password, hashedPassword);
@@ -219,9 +251,11 @@ public class AuthentificationService : IAuthentificationService
     private static string GenerateCode()
         => RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
 
+    // hash code
     private static string HashCode(string code, Guid userId, byte[] secret)
-    {
-        var data = Encoding.UTF8.GetBytes($"{userId}:{code}");
-        return Convert.ToHexString(HMACSHA256.HashData(secret, data));
-    }
+        => Convert.ToHexString(HMACSHA256.HashData(secret, Encoding.UTF8.GetBytes($"{userId}:{code}")));
+
+    // hash refresh token
+    private static string HashToken(string token)
+        => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 }

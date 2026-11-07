@@ -56,7 +56,6 @@ public class BaseRepository<T> : IBaseRepository<T> where T : BaseEntity
     public void Update(T entity)
     {
         DbSet.Update(entity);
-        entity.Touch();
     }
 
     public void Remove(T entity)

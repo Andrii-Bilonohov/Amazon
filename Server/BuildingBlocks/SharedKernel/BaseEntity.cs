@@ -2,24 +2,24 @@
 
 public abstract class BaseEntity
 {
-    public Guid Id { get; protected set; } = Guid.NewGuid();
+    public Guid Id { get; protected set; } = Guid.NewGuid(); 
 
     public DateTime CreatedAt { get; private set; }
     public DateTime UpdatedAt { get; private set; }
-    public bool IsDeleted { get; private set; } = false;
+    public bool IsDeleted { get; private set; }
 
     protected BaseEntity()
     {
-        CreatedAt = DateTime.UtcNow;
+        var now = DateTime.UtcNow;
+        CreatedAt = now;
+        UpdatedAt = now;
     }
 
-    public void Touch()
-    {
-        UpdatedAt = DateTime.UtcNow;
-    }
+    protected void Touch() => UpdatedAt = DateTime.UtcNow;
 
-    public void Delete()
+    protected void Delete()
     {
+        if (IsDeleted) return;
         IsDeleted = true;
         Touch();
     }

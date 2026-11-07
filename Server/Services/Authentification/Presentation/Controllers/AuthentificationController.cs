@@ -16,35 +16,43 @@ public class AuthentificationController : ControllerBase
     }
 
     [HttpPost("register")]
-    public async Task<IActionResult> Register([FromBody] RegisterUserRequest request, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> InitiateRegisterAsync([FromBody] RegisterUserRequest request, CancellationToken cancellationToken = default)
     {
   
-        var response = await _authentificationService.RegisterUser(request, cancellationToken);
+        var response = await _authentificationService.InitiateRegisterUserAsync(request, cancellationToken);
+        return response.IsSuccess ? Ok(response) : BadRequest(response);
+    }
+
+    [HttpPost("confirm-register")]
+    public async Task<IActionResult> ConfirmRegisterAsync([FromBody] ConfirmEmailRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await _authentificationService.ConfirmEmailAsync(request, cancellationToken);
         return response.IsSuccess ? Ok(response) : BadRequest(response);
     }
 
     [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginUserRequest request,  CancellationToken cancellationToken = default)
+    public async Task<IActionResult> LoginAsync([FromBody] LoginUserRequest request,  CancellationToken cancellationToken = default)
     {
  
-        var response = await _authentificationService.LoginUser(request, cancellationToken);
+        var response = await _authentificationService.LoginUserAsync(request, cancellationToken);
         return response.IsSuccess ? Ok(response) : BadRequest(response);
     }
 
     [HttpPut("reset-password")]
-    public async Task<IActionResult> InitiatePasswordReset([FromBody] ForgotPasswordRequest request,
+    public async Task<IActionResult> InitiatePasswordResetAsync([FromBody] ForgotPasswordRequest request,
         CancellationToken cancellationToken = default)
     {
 
-        var response = await _authentificationService.InitiatePasswordReset(request, cancellationToken);
+        var response = await _authentificationService.InitiatePasswordResetAsync(request, cancellationToken);
         return response.IsSuccess ? Ok(response) : BadRequest(response);
     }
 
-    [HttpPut("complete-reset-password")]
-    public async Task<IActionResult> CompletePasswordReset([FromBody] ResetPasswordRequest request,
+    [HttpPut("confirm-reset-password")]
+    public async Task<IActionResult> ConfirmPasswordResetAsync([FromBody] ResetPasswordRequest request,
         CancellationToken cancellationToken = default)
     {
-        var response = await _authentificationService.CompletePasswordReset(request, cancellationToken);
+        var response = await _authentificationService.ConfirmPasswordResetAsync(request, cancellationToken);
         return response.IsSuccess ? Ok(response) : BadRequest(response);
     }
 }
