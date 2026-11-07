@@ -2,9 +2,9 @@
 
 namespace EventBus.UsersEvents;
 
-public record UserRegisteredIntegration
+public record PasswordResetRequestedIntegration
 (
     Guid UserId,
-    string Email,
-    string Role
+    string EmaiL,
+    string Code
 ) : IntegrationEvent;

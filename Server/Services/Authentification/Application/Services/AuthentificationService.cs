@@ -75,8 +75,6 @@ public class AuthentificationService : IAuthentificationService
             user.ChangePassword(PasswordHasher(userRequest.Password));
 
             var code = GenerateCode();
-
-            _logger.LogInformation(code);
             
             user.RequestEmailConfirmation(HashCode(code, user.Id, _confirmEmailSecret), code, Now, ConfirmCodeLifetime);
 
@@ -117,7 +115,7 @@ public class AuthentificationService : IAuthentificationService
             var accessToken = _tokenService.GenerateAccessToken(user);
             var refreshToken = _tokenService.GenerateRefreshToken();
             user.UpdateRefreshToken(HashToken(refreshToken), Now.Add(RefreshTokenLifetime));
-
+            
             await _unitOfWork.CommitAsync(cancellationToken);
             return ItemResponse<AuthUserResponse>.Success(new AuthUserResponse(accessToken, refreshToken));
         }
@@ -173,8 +171,6 @@ public class AuthentificationService : IAuthentificationService
                 return InfoResponse.Success("If the account exists, a verification code has been sent.");
 
             var code = GenerateCode();
-            
-            _logger.LogInformation("Code: {Code}", code);
             
             user.RequestPasswordReset(HashCode(code, user.Id, _passwordResetSecret), code, Now.Add(ResetCodeLifetime));
 

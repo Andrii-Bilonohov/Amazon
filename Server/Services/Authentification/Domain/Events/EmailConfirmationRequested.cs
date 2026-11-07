@@ -6,5 +6,5 @@ public record EmailConfirmationRequested
 (
     Guid UserId,
     string Email,
-    string PlainCode
+    string Code
 ) : DomainEvent;

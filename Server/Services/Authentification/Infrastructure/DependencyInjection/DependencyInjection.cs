@@ -65,8 +65,7 @@ public static class DependencyInjection
         });
         
         services.AddScoped(typeof(IBaseRepository<>), typeof(BaseRepository<>));
-
-        services.AddScoped<IEventPublisher, EventPublisher>();
+        
         
         services.AddScoped<IUsersService, UsersService>();
         services.AddScoped<IAuthentificationService, AuthentificationService>();

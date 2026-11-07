@@ -51,9 +51,7 @@ public class User : AggregateRoot
         if (string.IsNullOrWhiteSpace(passwordHash)) throw new ArgumentException("Password required.");
         if (role != Role.Seller && role != Role.Buyer) throw new ArgumentException("Invalid role.");
 
-        var user = new User(email, passwordHash, role);
-        user.Raise(new UserRegistered(user.Id, email, role));
-        return user;
+        return new User(email, passwordHash, role);
     }
 
     public void UpdateProfile(string? firstName, string? lastName, string? phoneNumber, DateOnly? birthDate, string? avatarUrl)
@@ -201,7 +199,7 @@ public class User : AggregateRoot
         EmailConfirmationExpiresAt = null;
         EmailConfirmationAttempts = 0;
 
-        Raise(new UserEmailConfirmed(Id));
+        Raise(new UserEmailConfirmed(Id, Email, Role));
         Touch();
         return ConfirmEmailResult.Confirmed;
     }
