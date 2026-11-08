@@ -1,5 +1,6 @@
 ﻿using System.Text;
 using Application.Abstractions;
+using Application.Options;
 using Application.Services;
 using Domain.Abstractions;
 using Infrastructure.Persistence;
@@ -20,9 +21,18 @@ public static class DependencyInjection
     {
         services.AddDbContext<UserContext>(options =>
         {
-            var connectionString = configuration.GetConnectionString("DefaultConnection");
+            var connectionString = configuration["ConnectionString:User"];
             options.UseNpgsql(connectionString);
         });
+        
+        services.AddOptions<AuthOptions>()
+            .Bind(configuration.GetSection(AuthOptions.SectionName))
+            .ValidateDataAnnotations()
+            .Validate(o => IsBase64(o.PasswordResetSecret) && IsBase64(o.ConfirmEmailSecret),
+                "Auth secrets must be valid base64.")
+            .ValidateOnStart();
+
+        static bool IsBase64(string s) => Convert.TryFromBase64String(s, new byte[s.Length], out _);
         
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(o =>

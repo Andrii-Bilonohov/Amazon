@@ -3,10 +3,7 @@ using Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using DotNetEnv;
 
-
-var envPath = Path.Combine("../../../.env"); 
-
-Env.Load(envPath);
+Env.TraversePath().Load();
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddEnvironmentVariables();

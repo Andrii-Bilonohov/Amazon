@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="../../BuildingBlocks/EventBus/EventBus.csproj" />
+  <Project Path="Application/Application.csproj" />
+  <Project Path="Infrastructure/Infrastructure.csproj" />
+  <Project Path="Worker/Worker.csproj" />
+</Solution>
