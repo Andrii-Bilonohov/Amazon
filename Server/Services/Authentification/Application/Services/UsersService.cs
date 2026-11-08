@@ -27,6 +27,7 @@ public class UsersService : IUsersService
                 return InfoResponse.Failure("User not found");
             
             user.UpdateBlockStatus(request.IsBlocked);
+            _unitOfWork.Users.Update(user);
             await _unitOfWork.CommitAsync(cancellationToken);
 
             return InfoResponse.Success(
@@ -53,7 +54,8 @@ public class UsersService : IUsersService
 
             user.UpdateProfile(request.FirstName, request.LastName, request.PhoneNumber,
                 request.BirthDate, request.AvatarUrl);
-
+            
+            _unitOfWork.Users.Update(user);
             await _unitOfWork.CommitAsync(cancellationToken);
             return InfoResponse.Success($"User with id {user.Id} successfully updated");
         }
@@ -77,6 +79,7 @@ public class UsersService : IUsersService
                 return InfoResponse.Failure("User not found");
             
             user.MarkDeleted();
+            _unitOfWork.Users.Update(user);
             await _unitOfWork.CommitAsync(cancellationToken);
 
             return InfoResponse.Success($"User with id {user.Id} successfully deleted");
